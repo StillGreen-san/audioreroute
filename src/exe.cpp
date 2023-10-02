@@ -1,29 +1,24 @@
 #include <stdio.h>
 #include <strsafe.h>
 
+#include <string>
+
 #include <Windows.h>
 #include <detours/detours.h>
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
-	LPCSTR rpszDllsOut;
-	DWORD nDlls = 1;
+	const DWORD requiredBufferSize = GetFullPathNameA(DLL_FILENAME, 0, nullptr, nullptr);
+	if(requiredBufferSize == 0)
+	{
+		return static_cast<int>(GetLastError());
+	}
 
-	/////////////////////////////////////////////////////////// Validate DLLs.
-	for (DWORD n = 0; n < nDlls; n++) {
-		CHAR szDllPath[1024];
-		PCHAR pszFilePart = NULL;
-		LPSTR szDllName = "arrdll.dll";
+	std::string dllFullPath(requiredBufferSize, '\0');
 
-		DWORD len = GetFullPathNameA(szDllName, ARRAYSIZE(szDllPath), szDllPath, &pszFilePart);
-		if (len == 0) {
-			printf("withdll.exe: Error: %s is not a valid path name..\n", szDllName);
-			return 9002;
-		}
-
-		PCHAR psz = new CHAR [len];
-		StringCchCopyA(psz, len, szDllPath);
-		rpszDllsOut = psz;
+	if(GetFullPathNameA(DLL_FILENAME, dllFullPath.size(), dllFullPath.data(), nullptr) == 0)
+	{
+		return static_cast<int>(GetLastError());
 	}
 
 	//////////////////////////////////////////////////////////////////////////
@@ -33,6 +28,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 	CHAR szExe[1024];
 	CHAR szFullExe[1024] = "\0";
 	PCHAR pszFileExe = NULL;
+	LPCSTR rpszDllsOut[1] = {dllFullPath.data()};
 
 	ZeroMemory(&si, sizeof(si));
 	ZeroMemory(&pi, sizeof(pi));
@@ -46,9 +42,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	SetLastError(0);
 	SearchPathA(NULL, szExe, ".exe", ARRAYSIZE(szFullExe), szFullExe, &pszFileExe);
-	if (!DetourCreateProcessWithDllsA(szFullExe[0] ? szFullExe : NULL, szCommand,
-	       NULL, NULL, TRUE, dwFlags, NULL, NULL,
-	       &si, &pi, nDlls, &rpszDllsOut, NULL)) {
+	if (!DetourCreateProcessWithDllsA(szFullExe, szCommand, NULL, NULL, TRUE, dwFlags, NULL, NULL,
+	       &si, &pi, ARRAYSIZE(rpszDllsOut), rpszDllsOut, NULL)) {
 		DWORD dwError = GetLastError();
 		printf("withdll.exe: DetourCreateProcessWithDllEx failed: %ld\n", dwError);
 		if (dwError == ERROR_INVALID_HANDLE) {
@@ -70,9 +65,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		printf("withdll.exe: GetExitCodeProcess failed: %ld\n", GetLastError());
 		return 9010;
 	}
-
-	delete rpszDllsOut;
-	rpszDllsOut = NULL;
 
 	return dwResult;
 }
