@@ -9,6 +9,24 @@
 
 static_assert(std::is_same_v<WCHAR, std::wstring::value_type>);
 
+namespace win32
+{
+struct StartupInfoW : ::STARTUPINFOW
+{
+	StartupInfoW() : ::STARTUPINFOW{sizeof(*this),}
+	{
+	}
+};
+static_assert(sizeof(StartupInfoW) == sizeof(::STARTUPINFOW));
+struct ProcessInformation : ::PROCESS_INFORMATION
+{
+	ProcessInformation() : ::PROCESS_INFORMATION{}
+	{
+	}
+};
+static_assert(sizeof(ProcessInformation) == sizeof(::PROCESS_INFORMATION));
+} // namespace win32
+
 std::wstring_view getFirstArg(std::wstring_view str)
 {
 	if(str.empty())
