@@ -2,21 +2,60 @@
 #include <strsafe.h>
 
 #include <string>
+#include <string_view>
 
 #include <Windows.h>
 #include <detours/detours.h>
 
+static_assert(std::is_same_v<WCHAR, std::wstring::value_type>);
+
+std::wstring_view getFirstArg(std::wstring_view str)
+{
+	if(str.empty())
+	{
+		return {};
+	}
+
+	if(str.front() != L'"')
+	{
+		const size_t sepPos = str.find_first_of(L' ');
+		if(sepPos != std::wstring_view::npos)
+		{
+			str.remove_suffix(str.size() - sepPos);
+		}
+		return str;
+	}
+
+	const size_t strEndPos = str.find_first_of(L'"', 1);
+	str.remove_suffix(str.size() - (strEndPos + 1));
+	return str;
+}
+
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
-	const DWORD requiredBufferSize = GetFullPathNameA(DLL_FILENAME, 0, nullptr, nullptr);
-	if(requiredBufferSize == 0)
+	const DWORD requiredDllBufferSize = GetFullPathNameA(DLL_FILENAME, 0, nullptr, nullptr);
+	if(requiredDllBufferSize == 0)
 	{
 		return static_cast<int>(GetLastError());
 	}
 
-	std::string dllFullPath(requiredBufferSize, '\0');
+	std::string dllFullPath(requiredDllBufferSize, '\0');
 
 	if(GetFullPathNameA(DLL_FILENAME, dllFullPath.size(), dllFullPath.data(), nullptr) == 0)
+	{
+		return static_cast<int>(GetLastError());
+	}
+
+	std::wstring firstArg(getFirstArg(pCmdLine));
+	const DWORD requiredExeBufferSize = SearchPathW(nullptr, firstArg.data(), L".exe", 0, nullptr, nullptr);
+	if(requiredExeBufferSize == 0)
+	{
+		return static_cast<int>(GetLastError());
+	}
+
+	std::wstring exeFullPath(requiredExeBufferSize, L'\0');
+
+	if(SearchPathW(nullptr, firstArg.data(), L".exe", exeFullPath.size(), exeFullPath.data(), nullptr) == 0)
 	{
 		return static_cast<int>(GetLastError());
 	}
