@@ -14,6 +14,8 @@ set(DLL_TARGET arrdll${ARCH})
 set(EXE_TARGET arrexe${ARCH})
 
 add_compile_definitions(UNICODE)
+add_compile_definitions(EXE_FILENAME=\"${EXE_TARGET}.exe\")
+add_compile_definitions(DLL_FILENAME=\"${DLL_TARGET}.dll\")
 
 find_path(DETOURS_INCLUDE_DIRS "detours/detours.h" REQUIRED)
 find_library(DETOURS_LIBRARY detours REQUIRED)
