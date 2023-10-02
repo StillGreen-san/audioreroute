@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <strsafe.h>
 
 #include <string>
@@ -78,31 +77,27 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		return static_cast<int>(GetLastError());
 	}
 
-	STARTUPINFOW si;
-	PROCESS_INFORMATION pi;
-	LPCSTR rpszDllsOut = dllFullPath.data();
-
-	ZeroMemory(&si, sizeof(si));
-	ZeroMemory(&pi, sizeof(pi));
-	si.cb = sizeof(si);
+	win32::StartupInfoW startupInfoW;
+	win32::ProcessInformation processInformation;
+	LPCSTR dllsOut = dllFullPath.data();
 
 	const DWORD dwFlags = CREATE_DEFAULT_ERROR_MODE | CREATE_SUSPENDED;
 
 	if(DetourCreateProcessWithDllsW(exeFullPath.data(), pCmdLine, nullptr, nullptr, TRUE, dwFlags, nullptr, nullptr,
-	       &si, &pi, 1, &rpszDllsOut, nullptr) == FALSE)
+	       &startupInfoW, &processInformation, 1, &dllsOut, nullptr) == FALSE)
 	{
 		return static_cast<int>(GetLastError());
 	}
 
-	ResumeThread(pi.hThread);
+	ResumeThread(processInformation.hThread);
 
-	WaitForSingleObject(pi.hProcess, INFINITE);
+	WaitForSingleObject(processInformation.hProcess, INFINITE);
 
 	DWORD dwResult = 0;
-	if (!GetExitCodeProcess(pi.hProcess, &dwResult)) {
-		printf("withdll.exe: GetExitCodeProcess failed: %ld\n", GetLastError());
-		return 9010;
+	if(GetExitCodeProcess(processInformation.hProcess, &dwResult) == 0)
+	{
+		return static_cast<int>(GetLastError());
 	}
 
-	return dwResult;
+	return static_cast<int>(dwResult);
 }
