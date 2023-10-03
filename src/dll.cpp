@@ -1,22 +1,22 @@
 #include <Windows.h>
 #include <detours/detours.h>
 
-static LONG dwSlept = 0;
+#include <mmdeviceapi.h>
 
 // Target pointer for the uninstrumented Sleep API.
-//
-static VOID (WINAPI * TrueSleep)(DWORD dwMilliseconds) = Sleep;
+static HRESULT(STDAPICALLTYPE* TrueCoCreateInstance)(
+    REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID FAR* ppv) = CoCreateInstance;
 
 // Detour function that replaces the Sleep API.
-//
-VOID WINAPI TimedSleep(DWORD dwMilliseconds)
+HRESULT STDAPICALLTYPE DetouredCoCreateInstance(
+    REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID FAR* ppv)
 {
-	// Save the before and after times around calling the Sleep API.
-	DWORD dwBeg = GetTickCount();
-	TrueSleep(dwMilliseconds);
-	DWORD dwEnd = GetTickCount();
+	if(IsEqualGUID(rclsid, __uuidof(MMDeviceEnumerator)) && IsEqualGUID(riid, __uuidof(IMMDeviceEnumerator)))
+	{
+		return TrueCoCreateInstance(rclsid, pUnkOuter, dwClsContext, riid, ppv);
+	}
 
-	InterlockedExchangeAdd(&dwSlept, dwEnd - dwBeg);
+	return TrueCoCreateInstance(rclsid, pUnkOuter, dwClsContext, riid, ppv);
 }
 
 // DllMain function attaches and detaches the TimedSleep detour to the
@@ -25,21 +25,25 @@ VOID WINAPI TimedSleep(DWORD dwMilliseconds)
 //
 BOOL WINAPI DllMain(HINSTANCE hinst, DWORD dwReason, LPVOID reserved)
 {
-	if (DetourIsHelperProcess()) {
+	if(DetourIsHelperProcess())
+	{
 		return TRUE;
 	}
 
-	if (dwReason == DLL_PROCESS_ATTACH) {
+	if(dwReason == DLL_PROCESS_ATTACH)
+	{
 		DetourRestoreAfterWith();
 
 		DetourTransactionBegin();
 		DetourUpdateThread(GetCurrentThread());
-		DetourAttach(&(PVOID&)TrueSleep, TimedSleep);
+		DetourAttach(&(PVOID&)TrueCoCreateInstance, DetouredCoCreateInstance);
 		DetourTransactionCommit();
-	} else if (dwReason == DLL_PROCESS_DETACH) {
+	}
+	else if(dwReason == DLL_PROCESS_DETACH)
+	{
 		DetourTransactionBegin();
 		DetourUpdateThread(GetCurrentThread());
-		DetourDetach(&(PVOID&)TrueSleep, TimedSleep);
+		DetourDetach(&(PVOID&)TrueCoCreateInstance, DetouredCoCreateInstance);
 		DetourTransactionCommit();
 	}
 	return TRUE;
