@@ -5,15 +5,56 @@
 
 // Target pointer for the uninstrumented Sleep API.
 static HRESULT(STDAPICALLTYPE* TrueCoCreateInstance)(
-    REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID FAR* ppv) = CoCreateInstance;
+    REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID* ppv) = CoCreateInstance;
+
+struct DetourMMDeviceEnumerator : IMMDeviceEnumerator
+{
+	IMMDeviceEnumerator* winImpl = nullptr;
+	HRESULT STDMETHODCALLTYPE EnumAudioEndpoints(EDataFlow dataFlow, DWORD dwStateMask, IMMDeviceCollection** ppDevices) override
+	{
+		return winImpl->EnumAudioEndpoints(dataFlow,dwStateMask, ppDevices);
+	}
+	HRESULT STDMETHODCALLTYPE GetDefaultAudioEndpoint(EDataFlow dataFlow, ERole role, IMMDevice** ppEndpoint) override
+	{
+		return winImpl->GetDefaultAudioEndpoint(dataFlow, role, ppEndpoint);
+	}
+	HRESULT STDMETHODCALLTYPE GetDevice(LPCWSTR pwstrId, IMMDevice** ppDevice) override
+	{
+		return winImpl->GetDevice(pwstrId, ppDevice);
+	}
+	HRESULT STDMETHODCALLTYPE RegisterEndpointNotificationCallback(IMMNotificationClient* pClient) override
+	{
+		return winImpl->RegisterEndpointNotificationCallback(pClient);
+	}
+	HRESULT STDMETHODCALLTYPE UnregisterEndpointNotificationCallback(IMMNotificationClient* pClient) override
+	{
+		return winImpl->UnregisterEndpointNotificationCallback(pClient);
+	}
+	HRESULT STDMETHODCALLTYPE QueryInterface(const IID& riid, void** ppvObject) override
+	{
+		return winImpl->QueryInterface(riid, ppvObject);
+	}
+	ULONG STDMETHODCALLTYPE AddRef() override
+	{
+		return winImpl->AddRef();
+	}
+	ULONG STDMETHODCALLTYPE Release() override
+	{
+		return winImpl->Release();
+	}
+};
+static DetourMMDeviceEnumerator detourMmDeviceEnumerator{};
 
 // Detour function that replaces the Sleep API.
 HRESULT STDAPICALLTYPE DetouredCoCreateInstance(
-    REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID FAR* ppv)
+    REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID* ppv)
 {
 	if(IsEqualGUID(rclsid, __uuidof(MMDeviceEnumerator)) && IsEqualGUID(riid, __uuidof(IMMDeviceEnumerator)))
 	{
-		return TrueCoCreateInstance(rclsid, pUnkOuter, dwClsContext, riid, ppv);
+		const HRESULT result = TrueCoCreateInstance(rclsid, pUnkOuter, dwClsContext, riid, ppv);
+		detourMmDeviceEnumerator.winImpl = static_cast<IMMDeviceEnumerator*>(*ppv);
+		*ppv = &detourMmDeviceEnumerator;
+		return result;
 	}
 
 	return TrueCoCreateInstance(rclsid, pUnkOuter, dwClsContext, riid, ppv);
