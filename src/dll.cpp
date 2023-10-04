@@ -3,6 +3,57 @@
 
 #include <mmdeviceapi.h>
 
+#include <memory>
+#include <string>
+
+namespace win32
+{
+std::wstring GetModuleFileNameW(::HMODULE hModule)
+{
+	std::wstring modulePath(MAX_PATH, 0);
+	while(true)
+	{
+		const DWORD charsWritten = ::GetModuleFileNameW(hModule, modulePath.data(), modulePath.size());
+		if(charsWritten == 0)
+		{
+			modulePath.clear();
+			return modulePath;
+		}
+		if(charsWritten == modulePath.size())
+		{
+			modulePath.append(1, 0);
+			modulePath.resize(modulePath.capacity());
+			continue;
+		}
+		// charsWritten < modulePath.size()
+		modulePath.resize(charsWritten);
+		return modulePath;
+	}
+}
+std::wstring QueryDosDeviceW(LPCWSTR lpDeviceName)
+{
+	std::wstring dosDevice(MAX_PATH, 0);
+	while(true)
+	{
+		const DWORD charsWritten = ::QueryDosDeviceW(lpDeviceName, dosDevice.data(), dosDevice.size());
+		if(charsWritten == 0)
+		{
+			if(GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+			{
+				dosDevice.append(1, 0);
+				dosDevice.resize(dosDevice.capacity());
+				continue;
+			}
+			dosDevice.clear();
+			return dosDevice;
+		}
+		// charsWritten < modulePath.size()
+		dosDevice.resize(charsWritten);
+		return dosDevice;
+	}
+}
+} // namespace win32
+
 // Target pointer for the uninstrumented Sleep API.
 static HRESULT(STDAPICALLTYPE* TrueCoCreateInstance)(
     REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID* ppv) = CoCreateInstance;
