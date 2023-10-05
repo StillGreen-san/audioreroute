@@ -89,6 +89,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		return static_cast<int>(GetLastError());
 	}
 
+#if _DEBUG
+	Sleep(12000);
+#endif
 	ResumeThread(processInformation.hThread);
 
 	WaitForSingleObject(processInformation.hProcess, INFINITE);
