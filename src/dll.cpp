@@ -110,10 +110,20 @@ std::wstring RegQueryValueSZW(::HKEY hKey, ::LPCWSTR lpValueName)
 static HRESULT(STDAPICALLTYPE* TrueCoCreateInstance)(
     REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID* ppv) = CoCreateInstance;
 
+std::wstring extractAudioEndpointId(std::wstring endpointPath)
+{
+	endpointPath.erase(0, endpointPath.find_first_of('{'));
+	endpointPath.resize(endpointPath.find_first_of('}', endpointPath.find_first_of('}') + 1) + 1);
+	return endpointPath;
+}
+
 struct DetourMMDeviceEnumerator : IMMDeviceEnumerator
 {
 	IMMDeviceEnumerator* winImpl = nullptr;
-	HRESULT STDMETHODCALLTYPE EnumAudioEndpoints(EDataFlow dataFlow, DWORD dwStateMask, IMMDeviceCollection** ppDevices) override
+	std::wstring outputId;
+	std::wstring inputId;
+	HRESULT STDMETHODCALLTYPE EnumAudioEndpoints(
+	    EDataFlow dataFlow, DWORD dwStateMask, IMMDeviceCollection** ppDevices) override
 	{
 		return winImpl->EnumAudioEndpoints(dataFlow,dwStateMask, ppDevices);
 	}
@@ -144,6 +154,53 @@ struct DetourMMDeviceEnumerator : IMMDeviceEnumerator
 	ULONG STDMETHODCALLTYPE Release() override
 	{
 		return winImpl->Release();
+	}
+	void reset() noexcept
+	{
+		outputId = std::wstring{};
+		inputId = std::wstring{};
+	}
+	void queryDefaultId()
+	{
+		constexpr const LPCWSTR DefaultValue = L"";
+		constexpr const LPCWSTR OutputValue = L"000_000";
+		constexpr const LPCWSTR InputValue = L"000_001";
+		constexpr const LPCWSTR DefaultEndpointKey = L"SOFTWARE\\Microsoft\\Multimedia\\Audio\\DefaultEndpoint";
+
+		std::wstring exePath = win32::GetModuleFileNameW(nullptr);
+		exePath[2] = 0;
+		std::wstring devicePath = win32::QueryDosDeviceW(exePath.data());
+		exePath[2] = '\\';
+		devicePath.append(exePath, 2);
+
+		win32::HKEY defaultEndpoints(HKEY_CURRENT_USER, DefaultEndpointKey, KEY_ENUMERATE_SUB_KEYS);
+
+		for(DWORD endpointIndex = 0;; ++endpointIndex)
+		{
+			std::array<WCHAR, 16> enpointName{}; // optional
+			const LSTATUS keyStatus =
+			    RegEnumKeyW(defaultEndpoints, endpointIndex, enpointName.data(), enpointName.size());
+			if(keyStatus == ERROR_NO_MORE_ITEMS)
+			{
+				break;
+			}
+			if(keyStatus == ERROR_SUCCESS)
+			{
+				win32::HKEY endpoint(defaultEndpoints, enpointName.data(), KEY_QUERY_VALUE);
+
+				std::wstring appDevicePath = win32::RegQueryValueSZW(endpoint, DefaultValue);
+				appDevicePath.resize(appDevicePath.find_first_of(L'\0'));
+				if(appDevicePath != devicePath)
+				{
+					continue;
+				}
+
+				outputId = extractAudioEndpointId(win32::RegQueryValueSZW(endpoint, OutputValue));
+				inputId = extractAudioEndpointId(win32::RegQueryValueSZW(endpoint, InputValue));
+
+				break;
+			}
+		}
 	}
 };
 static DetourMMDeviceEnumerator detourMmDeviceEnumerator{};
@@ -182,6 +239,8 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD dwReason, LPVOID reserved)
 		DetourUpdateThread(GetCurrentThread());
 		DetourAttach(&(PVOID&)TrueCoCreateInstance, DetouredCoCreateInstance);
 		DetourTransactionCommit();
+
+		detourMmDeviceEnumerator.queryDefaultId();
 	}
 	else if(dwReason == DLL_PROCESS_DETACH)
 	{
@@ -189,6 +248,8 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD dwReason, LPVOID reserved)
 		DetourUpdateThread(GetCurrentThread());
 		DetourDetach(&(PVOID&)TrueCoCreateInstance, DetouredCoCreateInstance);
 		DetourTransactionCommit();
+
+		detourMmDeviceEnumerator.reset();
 	}
 	return TRUE;
 }
