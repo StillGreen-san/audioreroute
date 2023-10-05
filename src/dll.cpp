@@ -16,8 +16,7 @@ std::wstring GetModuleFileNameW(::HMODULE hModule)
 		const DWORD charsWritten = ::GetModuleFileNameW(hModule, modulePath.data(), modulePath.size());
 		if(charsWritten == 0)
 		{
-			modulePath.clear();
-			return modulePath;
+			return {};
 		}
 		if(charsWritten == modulePath.size())
 		{
@@ -44,8 +43,7 @@ std::wstring QueryDosDeviceW(::LPCWSTR lpDeviceName)
 				dosDevice.resize(dosDevice.capacity());
 				continue;
 			}
-			dosDevice.clear();
-			return dosDevice;
+			return {};
 		}
 		// charsWritten < modulePath.size()
 		dosDevice.resize(dosDevice.find_first_of(L'\0'));
@@ -103,8 +101,7 @@ std::wstring RegQueryValueSZW(::HKEY hKey, ::LPCWSTR lpValueName)
 			szData.resize(szDataBytes / sizeof(WCHAR));
 			continue;
 		}
-		szData.clear();
-		return szData;
+		return {};
 	}
 }
 } // namespace win32
