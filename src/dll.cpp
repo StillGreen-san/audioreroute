@@ -52,6 +52,39 @@ std::wstring QueryDosDeviceW(::LPCWSTR lpDeviceName)
 		return dosDevice;
 	}
 }
+class HKEY
+{
+public:
+	HKEY(::HKEY hRootKey, ::LPCWSTR lpSubKey, ::REGSAM samDesired) noexcept
+	{
+		const LSTATUS openStatus = RegOpenKeyExW(hRootKey, lpSubKey, 0, samDesired, &hkey);
+		if(openStatus != ERROR_SUCCESS)
+		{
+			hkey = nullptr;
+		}
+	}
+	HKEY(const HKEY&) = delete;
+	HKEY& operator=(const HKEY&) = delete;
+	HKEY(HKEY&& other) noexcept : hkey{std::exchange(other.hkey, nullptr)}
+	{
+	}
+	HKEY& operator=(HKEY&& other) noexcept
+	{
+		hkey = std::exchange(other.hkey, nullptr);
+		return *this;
+	}
+	~HKEY() noexcept
+	{
+		RegCloseKey(hkey);
+	}
+	operator ::HKEY() noexcept
+	{
+		return hkey;
+	}
+
+private:
+	::HKEY hkey = nullptr;
+};
 } // namespace win32
 
 // Target pointer for the uninstrumented Sleep API.
