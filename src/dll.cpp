@@ -129,6 +129,64 @@ struct DetourMMDeviceEnumerator : IMMDeviceEnumerator
 	}
 	HRESULT STDMETHODCALLTYPE GetDefaultAudioEndpoint(EDataFlow dataFlow, ERole role, IMMDevice** ppEndpoint) override
 	{
+		if(dataFlow == EDataFlow::eAll)
+		{
+			return winImpl->GetDefaultAudioEndpoint(dataFlow, role, ppEndpoint);
+		}
+		IMMDeviceCollection* pDevices;
+		HRESULT hr = EnumAudioEndpoints(dataFlow, DEVICE_STATE_ACTIVE, &pDevices);
+		bool bFind = false;
+		if(SUCCEEDED(hr))
+		{
+			UINT count;
+			hr = pDevices->GetCount(&count);
+			if(SUCCEEDED(hr))
+			{
+				for(UINT i = 0; i < count; i++)
+				{
+					IMMDevice* pDevice;
+					hr = pDevices->Item(i, &pDevice);
+					if(SUCCEEDED(hr))
+					{
+						LPWSTR wstrID = NULL;
+						hr = pDevice->GetId(&wstrID);
+						if(SUCCEEDED(hr))
+						{
+							switch(dataFlow)
+							{
+							case eRender:
+								if(lstrcmpW(wstrID, outputId.data()) == 0)
+								{
+									*ppEndpoint = pDevice;
+									bFind = true;
+								}
+								break;
+							case eCapture:
+								if(lstrcmpW(wstrID, inputId.data()) == 0)
+								{
+									*ppEndpoint = pDevice;
+									bFind = true;
+								}
+								break;
+							}
+						}
+						if(!bFind)
+						{
+							pDevice->Release();
+						}
+					}
+					if(bFind)
+					{
+						break;
+					}
+				}
+			}
+			pDevices->Release();
+		}
+		if(bFind)
+		{
+			return S_OK;
+		}
 		return winImpl->GetDefaultAudioEndpoint(dataFlow, role, ppEndpoint);
 	}
 	HRESULT STDMETHODCALLTYPE GetDevice(LPCWSTR pwstrId, IMMDevice** ppDevice) override
