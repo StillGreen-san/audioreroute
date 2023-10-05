@@ -104,6 +104,70 @@ std::wstring RegQueryValueSZW(::HKEY hKey, ::LPCWSTR lpValueName)
 		return {};
 	}
 }
+struct CoTaskMemFreeDeleter
+{
+	void operator()(LPVOID data) noexcept
+	{
+		CoTaskMemFree(data);
+	}
+};
+struct IUnknownDeleter
+{
+	void operator()(IUnknown* itf) noexcept
+	{
+		if(itf)
+		{
+			itf->Release();
+		}
+	}
+};
+template<typename TDataType, typename TDeleter>
+class Resource
+{
+public:
+	using DataType = std::remove_pointer_t<TDataType>;
+	Resource() = default;
+	Resource(DataType* data) noexcept : data{data}
+	{
+	}
+	Resource(const Resource&) = delete;
+	Resource(Resource&& other) noexcept : data{std::exchange(other.data, nullptr)}
+	{
+	}
+	Resource& operator=(const Resource&) = delete;
+	Resource& operator=(Resource&& other) noexcept
+	{
+		data = std::exchange(other.data, nullptr);
+		return *this;
+	}
+	~Resource()
+	{
+		TDeleter{}(data);
+	}
+	DataType* operator->() noexcept
+	{
+		return data;
+	}
+	DataType* get() noexcept
+	{
+		return data;
+	}
+	DataType** get_ptr() noexcept
+	{
+		return &data;
+	}
+	DataType* release() noexcept
+	{
+		return std::exchange(data, nullptr);
+	}
+
+private:
+	DataType* data = nullptr;
+};
+template<typename TDataType>
+using CoTaskResource = Resource<TDataType, CoTaskMemFreeDeleter>;
+template<typename TDataType>
+using IUnknownResource = Resource<TDataType, IUnknownDeleter>;
 } // namespace win32
 
 // Target pointer for the uninstrumented Sleep API.
