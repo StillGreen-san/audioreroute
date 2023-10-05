@@ -3,7 +3,7 @@
 
 #include <mmdeviceapi.h>
 
-#include <memory>
+#include <array>
 #include <string>
 
 namespace win32
@@ -189,67 +189,48 @@ struct DetourMMDeviceEnumerator : IMMDeviceEnumerator
 	HRESULT STDMETHODCALLTYPE EnumAudioEndpoints(
 	    EDataFlow dataFlow, DWORD dwStateMask, IMMDeviceCollection** ppDevices) override
 	{
-		return winImpl->EnumAudioEndpoints(dataFlow,dwStateMask, ppDevices);
+		return winImpl->EnumAudioEndpoints(dataFlow, dwStateMask, ppDevices);
 	}
 	HRESULT STDMETHODCALLTYPE GetDefaultAudioEndpoint(EDataFlow dataFlow, ERole role, IMMDevice** ppEndpoint) override
 	{
-		if(dataFlow == EDataFlow::eAll)
+		win32::IUnknownResource<IMMDeviceCollection> pDevices;
+		if(FAILED(EnumAudioEndpoints(dataFlow, DEVICE_STATE_ACTIVE, pDevices.get_ptr())))
 		{
 			return winImpl->GetDefaultAudioEndpoint(dataFlow, role, ppEndpoint);
 		}
-		IMMDeviceCollection* pDevices;
-		HRESULT hr = EnumAudioEndpoints(dataFlow, DEVICE_STATE_ACTIVE, &pDevices);
-		bool bFind = false;
-		if(SUCCEEDED(hr))
+
+		UINT count = 0;
+		pDevices->GetCount(&count);
+
+		for(UINT i = 0; i < count; i++)
 		{
-			UINT count;
-			hr = pDevices->GetCount(&count);
-			if(SUCCEEDED(hr))
+			win32::IUnknownResource<IMMDevice> pDevice;
+			if(FAILED(pDevices->Item(i, pDevice.get_ptr())))
 			{
-				for(UINT i = 0; i < count; i++)
-				{
-					IMMDevice* pDevice;
-					hr = pDevices->Item(i, &pDevice);
-					if(SUCCEEDED(hr))
-					{
-						LPWSTR wstrID = NULL;
-						hr = pDevice->GetId(&wstrID);
-						if(SUCCEEDED(hr))
-						{
-							switch(dataFlow)
-							{
-							case eRender:
-								if(lstrcmpW(wstrID, outputId.data()) == 0)
-								{
-									*ppEndpoint = pDevice;
-									bFind = true;
-								}
-								break;
-							case eCapture:
-								if(lstrcmpW(wstrID, inputId.data()) == 0)
-								{
-									*ppEndpoint = pDevice;
-									bFind = true;
-								}
-								break;
-							}
-						}
-						if(!bFind)
-						{
-							pDevice->Release();
-						}
-					}
-					if(bFind)
-					{
-						break;
-					}
-				}
+				continue;
 			}
-			pDevices->Release();
-		}
-		if(bFind)
-		{
-			return S_OK;
+			win32::CoTaskResource<LPWSTR> wstrID;
+			if(FAILED(pDevice->GetId(wstrID.get_ptr())))
+			{
+				continue;
+			}
+			switch(dataFlow)
+			{
+			case eRender:
+				if(lstrcmpW(wstrID.get(), outputId.data()) == 0)
+				{
+					*ppEndpoint = pDevice.release();
+					return S_OK;
+				}
+				break;
+			case eCapture:
+				if(lstrcmpW(wstrID.get(), inputId.data()) == 0)
+				{
+					*ppEndpoint = pDevice.release();
+					return S_OK;
+				}
+				break;
+			}
 		}
 		return winImpl->GetDefaultAudioEndpoint(dataFlow, role, ppEndpoint);
 	}
