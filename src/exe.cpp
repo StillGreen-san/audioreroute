@@ -1,7 +1,4 @@
-#include <strsafe.h>
-
 #include <string>
-#include <string_view>
 
 #include <Windows.h>
 #include <detours/detours.h>
@@ -12,7 +9,10 @@ namespace win32
 {
 struct StartupInfoW : ::STARTUPINFOW
 {
-	StartupInfoW() : ::STARTUPINFOW{sizeof(*this),}
+	StartupInfoW() :
+	    ::STARTUPINFOW{
+	        sizeof(*this),
+	    }
 	{
 	}
 };
