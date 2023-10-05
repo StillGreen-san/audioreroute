@@ -85,6 +85,28 @@ public:
 private:
 	::HKEY hkey = nullptr;
 };
+std::wstring RegQueryValueSZW(::HKEY hKey, ::LPCWSTR lpValueName)
+{
+	std::wstring szData(MAX_PATH, 0);
+	while(true)
+	{
+		DWORD szDataBytes = szData.size() * sizeof(WCHAR);
+		const LSTATUS szDataStatus = RegQueryValueExW(
+		    hKey, lpValueName, nullptr, nullptr, reinterpret_cast<LPBYTE>(szData.data()), &szDataBytes);
+		if(szDataStatus == ERROR_SUCCESS)
+		{
+			szData.resize(szDataBytes / sizeof(WCHAR));
+			return szData;
+		}
+		if(szDataStatus == ERROR_MORE_DATA)
+		{
+			szData.resize(szDataBytes / sizeof(WCHAR));
+			continue;
+		}
+		szData.clear();
+		return szData;
+	}
+}
 } // namespace win32
 
 // Target pointer for the uninstrumented Sleep API.
