@@ -30,7 +30,7 @@ std::wstring GetModuleFileNameW(::HMODULE hModule)
 		return modulePath;
 	}
 }
-std::wstring QueryDosDeviceW(LPCWSTR lpDeviceName)
+std::wstring QueryDosDeviceW(::LPCWSTR lpDeviceName)
 {
 	std::wstring dosDevice(MAX_PATH, 0);
 	while(true)
@@ -48,7 +48,7 @@ std::wstring QueryDosDeviceW(LPCWSTR lpDeviceName)
 			return dosDevice;
 		}
 		// charsWritten < modulePath.size()
-		dosDevice.resize(charsWritten);
+		dosDevice.resize(dosDevice.find_first_of(L'\0'));
 		return dosDevice;
 	}
 }
