@@ -88,29 +88,15 @@ std::wstring_view getFirstArg(std::wstring_view str)
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
-	const DWORD requiredDllBufferSize = GetFullPathNameA(DLL_FILENAME, 0, nullptr, nullptr);
-	if(requiredDllBufferSize == 0)
+	const std::string dllFullPath = win32::GetFullPathNameA(DLL_FILENAME);
+	if(dllFullPath.empty())
 	{
 		return static_cast<int>(GetLastError());
 	}
 
-	std::string dllFullPath(requiredDllBufferSize, '\0');
-
-	if(GetFullPathNameA(DLL_FILENAME, dllFullPath.size(), dllFullPath.data(), nullptr) == 0)
-	{
-		return static_cast<int>(GetLastError());
-	}
-
-	std::wstring firstArg(getFirstArg(pCmdLine));
-	const DWORD requiredExeBufferSize = SearchPathW(nullptr, firstArg.data(), L".exe", 0, nullptr, nullptr);
-	if(requiredExeBufferSize == 0)
-	{
-		return static_cast<int>(GetLastError());
-	}
-
-	std::wstring exeFullPath(requiredExeBufferSize, L'\0');
-
-	if(SearchPathW(nullptr, firstArg.data(), L".exe", exeFullPath.size(), exeFullPath.data(), nullptr) == 0)
+	const std::wstring firstArg(getFirstArg(pCmdLine));
+	const std::wstring exeFullPath = win32::SearchPathW(firstArg.data(), L"exe");
+	if(exeFullPath.empty())
 	{
 		return static_cast<int>(GetLastError());
 	}
