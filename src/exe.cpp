@@ -145,13 +145,27 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		return static_cast<int>(GetLastError());
 	}
 
+	const std::wstring exeFinalPath = [&]() -> std::wstring
+	{
+		win32::Handle exeFile = CreateFileW(exeFullPath.data(), 0, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+		if(exeFile == INVALID_HANDLE_VALUE)
+		{
+			return {};
+		}
+		return win32::GetFinalPathNameByHandleW(exeFile, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+	}();
+	if(exeFinalPath.empty())
+	{
+		return static_cast<int>(GetLastError());
+	}
+
 	win32::StartupInfoW startupInfoW;
 	win32::ProcessInformation processInformation;
 	LPCSTR dllsOut = dllFullPath.data();
 
 	const DWORD dwFlags = CREATE_DEFAULT_ERROR_MODE | CREATE_SUSPENDED;
 
-	if(DetourCreateProcessWithDllsW(exeFullPath.data(), pCmdLine, nullptr, nullptr, TRUE, dwFlags, nullptr, nullptr,
+	if(DetourCreateProcessWithDllsW(&exeFinalPath[4], pCmdLine, nullptr, nullptr, TRUE, dwFlags, nullptr, nullptr,
 	       &startupInfoW, &processInformation, 1, &dllsOut, nullptr) == FALSE)
 	{
 		return static_cast<int>(GetLastError());
