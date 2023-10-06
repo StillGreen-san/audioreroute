@@ -62,6 +62,31 @@ struct ProcessInformation : ::PROCESS_INFORMATION
 	}
 };
 static_assert(sizeof(ProcessInformation) == sizeof(::PROCESS_INFORMATION));
+class Handle
+{
+public:
+	Handle() = default;
+	Handle(::HANDLE handle) noexcept : handle{handle} {};
+	Handle(const Handle&) = delete;
+	Handle(Handle&& other) noexcept : handle{std::exchange(other.handle, INVALID_HANDLE_VALUE)} {};
+	Handle& operator=(const Handle&) = delete;
+	Handle& operator=(Handle&& other) noexcept
+	{
+		handle = std::exchange(other.handle, INVALID_HANDLE_VALUE);
+		return *this;
+	}
+	~Handle() noexcept
+	{
+		CloseHandle(handle);
+	}
+	operator ::HANDLE() noexcept
+	{
+		return handle;
+	}
+
+private:
+	::HANDLE handle = INVALID_HANDLE_VALUE;
+};
 std::wstring GetFinalPathNameByHandleW(::HANDLE hFile, ::DWORD dwFlags)
 {
 	std::wstring finalPath(MAX_PATH, 0);
