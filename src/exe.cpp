@@ -26,6 +26,25 @@ std::string GetFullPathNameA(::LPCSTR lpFileName)
 		return fullPath;
 	}
 }
+std::wstring SearchPathW(::LPCWSTR lpFileName, ::LPCWSTR lpExtension)
+{
+	std::wstring filePath(MAX_PATH, 0);
+	while(true)
+	{
+		const DWORD result = ::SearchPathW(nullptr, lpFileName, lpExtension, filePath.size(), filePath.data(), nullptr);
+		if(result == 0)
+		{
+			return {};
+		}
+		if(result > filePath.size())
+		{
+			filePath.resize(result);
+			continue;
+		}
+		filePath.resize(result);
+		return filePath;
+	}
+}
 struct StartupInfoW : ::STARTUPINFOW
 {
 	StartupInfoW() :
