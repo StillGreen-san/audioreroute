@@ -7,6 +7,25 @@ static_assert(std::is_same_v<WCHAR, std::wstring::value_type>);
 
 namespace win32
 {
+std::string GetFullPathNameA(::LPCSTR lpFileName)
+{
+	std::string fullPath(MAX_PATH, 0);
+	while(true)
+	{
+		const DWORD result = ::GetFullPathNameA(lpFileName, fullPath.size(), fullPath.data(), nullptr);
+		if(result == 0)
+		{
+			return {};
+		}
+		if(result > fullPath.size())
+		{
+			fullPath.resize(result);
+			continue;
+		}
+		fullPath.resize(result);
+		return fullPath;
+	}
+}
 struct StartupInfoW : ::STARTUPINFOW
 {
 	StartupInfoW() :
