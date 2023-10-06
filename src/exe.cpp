@@ -62,6 +62,25 @@ struct ProcessInformation : ::PROCESS_INFORMATION
 	}
 };
 static_assert(sizeof(ProcessInformation) == sizeof(::PROCESS_INFORMATION));
+std::wstring GetFinalPathNameByHandleW(::HANDLE hFile, ::DWORD dwFlags)
+{
+	std::wstring finalPath(MAX_PATH, 0);
+	while(true)
+	{
+		const DWORD result = ::GetFinalPathNameByHandleW(hFile, finalPath.data(), finalPath.size(), dwFlags);
+		if(result == 0)
+		{
+			return {};
+		}
+		if(result > finalPath.size())
+		{
+			finalPath.resize(result);
+			continue;
+		}
+		finalPath.resize(result);
+		return finalPath;
+	}
+}
 } // namespace win32
 
 std::wstring_view getFirstArg(std::wstring_view str)
