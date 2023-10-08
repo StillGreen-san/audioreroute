@@ -108,26 +108,40 @@ std::wstring GetFinalPathNameByHandleW(::HANDLE hFile, ::DWORD dwFlags)
 }
 } // namespace win32
 
-std::wstring_view getFirstArg(std::wstring_view str)
+std::pair<std::wstring_view, PWSTR> splitArgs(PWSTR cmdLine)
 {
-	if(str.empty())
+	std::wstring_view firstArg(cmdLine);
+	if(firstArg.empty())
 	{
 		return {};
 	}
 
-	if(str.front() != L'"')
+	if(firstArg.front() != L'"')
 	{
-		const size_t sepPos = str.find_first_of(L' ');
+		const size_t sepPos = firstArg.find_first_of(L' ');
 		if(sepPos != std::wstring_view::npos)
 		{
-			str.remove_suffix(str.size() - sepPos);
+			firstArg.remove_suffix(firstArg.size() - sepPos);
+			cmdLine += firstArg.size() + 1;
 		}
-		return str;
+		else
+		{
+			cmdLine = nullptr;
+		}
+		return {firstArg, cmdLine};
 	}
 
-	const size_t strEndPos = str.find_first_of(L'"', 1);
-	str.remove_suffix(str.size() - (strEndPos + 1));
-	return str;
+	const size_t strEndPos = firstArg.find_first_of(L'"', 1);
+	if(strEndPos + 1 == firstArg.size())
+	{
+		cmdLine = nullptr;
+	}
+	else
+	{
+		firstArg.remove_suffix(firstArg.size() - (strEndPos + 1));
+		cmdLine += firstArg.size() + 1;
+	}
+	return {firstArg, cmdLine};
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
@@ -138,7 +152,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 		return static_cast<int>(GetLastError());
 	}
 
-	const std::wstring firstArg(getFirstArg(pCmdLine));
+	const auto programArgs = splitArgs(pCmdLine);
+	const std::wstring firstArg(programArgs.first);
 	const std::wstring exeFullPath = win32::SearchPathW(firstArg.data(), L"exe");
 	if(exeFullPath.empty())
 	{
@@ -165,8 +180,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 	const DWORD dwFlags = CREATE_DEFAULT_ERROR_MODE | CREATE_SUSPENDED;
 
-	if(DetourCreateProcessWithDllsW(&exeFinalPath[4], pCmdLine, nullptr, nullptr, TRUE, dwFlags, nullptr, nullptr,
-	       &startupInfoW, &processInformation, 1, &dllsOut, nullptr) == FALSE)
+	if(DetourCreateProcessWithDllsW(&exeFinalPath[4], programArgs.second, nullptr, nullptr, TRUE, dwFlags, nullptr,
+	       nullptr, &startupInfoW, &processInformation, 1, &dllsOut, nullptr) == FALSE)
 	{
 		return static_cast<int>(GetLastError());
 	}
